@@ -33,7 +33,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // Load audio from URL
-    wavesurfer.load('../media/demo.wav');
+    wavesurfer.load('https://wavesurfer-js.org/example/media/small-demo.wav');
 
     // this is already being done in /examples/trivia.js
     // document.querySelector(

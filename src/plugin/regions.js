@@ -6,6 +6,11 @@
  *
  * @extends {Observer}
  */
+function formatTime(time) {
+    return Math.round(time * 100) / 100
+
+}
+
 class Region {
     constructor(params, ws) {
         this.wavesurfer = ws;
@@ -13,14 +18,15 @@ class Region {
         this.util = ws.util;
         this.style = this.util.style;
 
+        // this.id = params.id == null ? ws.util.getId() : params.id;
         this.id = params.id == null ? ws.util.getId() : params.id;
-        this.start = Number(params.start) || 0;
+        this.start = formatTime(Number(params.start) || 0);
         this.end =
-            params.end == null
+            formatTime(params.end == null
                 ? // small marker-like region
-                  this.start +
-                  (4 / this.wrapper.scrollWidth) * this.wavesurfer.getDuration()
-                : Number(params.end);
+                this.start +
+                (4 / this.wrapper.scrollWidth) * this.wavesurfer.getDuration()
+                : Number(params.end));
         this.resize =
             params.resize === undefined ? true : Boolean(params.resize);
         this.drag = params.drag === undefined ? true : Boolean(params.drag);
@@ -28,7 +34,8 @@ class Region {
         this.color = params.color || 'rgba(0, 0, 0, 0.1)';
         this.data = params.data || {};
         this.attributes = params.attributes || {};
-
+        this.firedIn = false;
+        this.firedOut = false;
         this.maxLength = params.maxLength;
         this.minLength = params.minLength;
         this._onRedraw = () => this.updateRender();
@@ -37,20 +44,25 @@ class Region {
         this.scrollSpeed = params.scrollSpeed || 1;
         this.scrollThreshold = params.scrollThreshold || 10;
 
-        this.bindInOut();
         this.render();
         this.wavesurfer.on('zoom', this._onRedraw);
         this.wavesurfer.on('redraw', this._onRedraw);
         this.wavesurfer.fireEvent('region-created', this);
+        /* Loop playback. */
+        this.on('out', () => {
+            if (this.loop) {
+                this.wavesurfer.play(this.start);
+            }
+        });
     }
 
     /* Update region params. */
     update(params) {
         if (null != params.start) {
-            this.start = Number(params.start);
+            this.start = formatTime(Number(params.start));
         }
         if (null != params.end) {
-            this.end = Number(params.end);
+            this.end = formatTime(Number(params.end));
         }
         if (null != params.loop) {
             this.loop = Boolean(params.loop);
@@ -96,9 +108,12 @@ class Region {
 
     /* Play the audio region. */
     play() {
+        this.firedIn = false;
+        this.firedOut = false;
         this.wavesurfer.play(this.start, this.end);
         this.fireEvent('play');
         this.wavesurfer.fireEvent('region-play', this);
+        this.wavesurfer.regions._lastIdx = 0;
     }
 
     /* Play the region in loop. */
@@ -182,19 +197,19 @@ class Region {
 
         if (this.start < 0) {
             this.start = 0;
-            this.end = this.end - this.start;
+            this.end = formatTime(this.end - this.start);
         }
         if (this.end > dur) {
-            this.end = dur;
-            this.start = dur - (this.end - this.start);
+            this.end = formatTime(dur);
+            this.start = formatTime(dur - (this.end - this.start));
         }
 
         if (this.minLength != null) {
-            this.end = Math.max(this.start + this.minLength, this.end);
+            this.end = formatTime(Math.max(this.start + this.minLength, this.end));
         }
 
         if (this.maxLength != null) {
-            this.end = Math.min(this.start + this.maxLength, this.end);
+            this.end = formatTime(Math.min(this.start + this.maxLength, this.end));
         }
 
         if (this.element != null) {
@@ -207,57 +222,24 @@ class Region {
                 left: left + 'px',
                 width: regionWidth + 'px',
                 backgroundColor: this.color,
+                borderLeft: '.5px solid rgba(0,0,0,0.1)',
+                borderRight: '.5px solid rgba(0,0,0,0.1)',
                 cursor: this.drag ? 'move' : 'default'
             });
 
             for (const attrname in this.attributes) {
-                this.element.setAttribute(
-                    'data-region-' + attrname,
-                    this.attributes[attrname]
-                );
+                if (attrname !== 'highlight' || this.attributes[attrname]) {
+                    this.element.setAttribute(
+                        'data-region-' + attrname,
+                        this.attributes[attrname]
+                    );
+                } else {
+                    this.element.removeAttribute('data-region-highlight')
+                }
             }
 
             this.element.title = this.formatTime(this.start, this.end);
         }
-    }
-
-    /* Bind audio events. */
-    bindInOut() {
-        this.firedIn = false;
-        this.firedOut = false;
-
-        const onProcess = time => {
-            if (
-                !this.firedOut &&
-                this.firedIn &&
-                (this.start >= Math.round(time * 100) / 100 ||
-                    this.end <= Math.round(time * 100) / 100)
-            ) {
-                this.firedOut = true;
-                this.firedIn = false;
-                this.fireEvent('out');
-                this.wavesurfer.fireEvent('region-out', this);
-            }
-            if (!this.firedIn && this.start <= time && this.end > time) {
-                this.firedIn = true;
-                this.firedOut = false;
-                this.fireEvent('in');
-                this.wavesurfer.fireEvent('region-in', this);
-            }
-        };
-
-        this.wavesurfer.backend.on('audioprocess', onProcess);
-
-        this.on('remove', () => {
-            this.wavesurfer.backend.un('audioprocess', onProcess);
-        });
-
-        /* Loop playback. */
-        this.on('out', () => {
-            if (this.loop) {
-                this.wavesurfer.play(this.start);
-            }
-        });
     }
 
     /* Bind DOM events. */
@@ -265,17 +247,28 @@ class Region {
         this.element.addEventListener('mouseenter', e => {
             this.fireEvent('mouseenter', e);
             this.wavesurfer.fireEvent('region-mouseenter', this, e);
+            this.attributes.highlight = true;
+            this.updateRender()
         });
 
         this.element.addEventListener('mouseleave', e => {
             this.fireEvent('mouseleave', e);
             this.wavesurfer.fireEvent('region-mouseleave', this, e);
+            if (!this._clicked) {
+                this.attributes.highlight = false;
+                this.updateRender()
+            }
         });
 
         this.element.addEventListener('click', e => {
             e.preventDefault();
             this.fireEvent('click', e);
             this.wavesurfer.fireEvent('region-click', this, e);
+            this._clicked = true;
+            if (!this.attributes.highlight) {
+                this.attributes.highlight = true;
+                this.updateRender()
+            }
         });
 
         this.element.addEventListener('dblclick', e => {
@@ -436,7 +429,7 @@ class Region {
                                         x > scrollThreshold) ||
                                     (scrollDirection === 1 &&
                                         x + regionRect.width <
-                                            wrapperRect.right - scrollThreshold)
+                                        wrapperRect.right - scrollThreshold)
                                 ) {
                                     scrollDirection = null;
                                 }
@@ -619,7 +612,8 @@ export default class RegionsPlugin {
         this.params = params;
         this.wavesurfer = ws;
         this.util = ws.util;
-
+        this._onReady = this._onReady.bind(this)
+        this._onProcess = this._onProcess.bind(this)
         // turn the plugin instance into an observer
         const observerPrototypeKeys = Object.getOwnPropertyNames(
             this.util.Observer.prototype
@@ -631,17 +625,59 @@ export default class RegionsPlugin {
 
         // Id-based hash of regions.
         this.list = {};
-        this._onReady = () => {
-            this.wrapper = this.wavesurfer.drawer.wrapper;
-            if (this.params.regions) {
-                this.params.regions.forEach(region => {
-                    this.add(region);
-                });
+        this._lastIdx = 0;
+    }
+
+    _onReady() {
+        this.wrapper = this.wavesurfer.drawer.wrapper;
+        if (this.params.regions) {
+            this.params.regions.forEach(region => {
+                this.add(region);
+            });
+        }
+        if (this.params.dragSelection) {
+            this.enableDragSelection(this.params);
+        }
+        this.wavesurfer.backend.on('audioprocess', this._onProcess);
+        this.wavesurfer.on('region-click', (reg) => {
+            for (let k in this.list) {
+                const region = this.list[k]
+                if (region._clicked && region.id != reg.id) {
+                    region.attributes.highlight = false;
+                    region._clicked = false;
+                    region.updateRender()
+                }
             }
-            if (this.params.dragSelection) {
-                this.enableDragSelection(this.params);
-            }
-        };
+        });
+    };
+
+    _onProcess(time) {
+        ((time) => {
+            clearTimeout(this._timeout);
+            this._timeout = setTimeout(() => {
+                for (let k in this.list) {
+                    const region = this.list[k];
+                    if (!region.firedIn && region.start <= time && region.end > time) {
+                        region.firedIn = true;
+                        region.firedOut = false;
+                        region.fireEvent('in');
+                        region.wavesurfer.fireEvent('region-in', region);
+                        break;
+                    } else if (
+                        !region.firedOut &&
+                        region.firedIn &&
+                        (region.start > time ||
+                            region.end <= time)
+                    ) {
+                        region.firedOut = true;
+                        region.firedIn = false;
+                        region.fireEvent('out');
+                        region.wavesurfer.fireEvent('region-out', region);
+                        break;
+                    }
+                }
+            }, 0)
+        })(Math.round(time * 100) / 100)
     }
 
     init() {
@@ -649,11 +685,13 @@ export default class RegionsPlugin {
         if (this.wavesurfer.isReady) {
             this._onReady();
         }
+        this._lastIdx = 0;
         this.wavesurfer.on('ready', this._onReady);
     }
 
     destroy() {
         this.wavesurfer.un('ready', this._onReady);
+        this.wavesurfer.backend.un('audioprocess', this._onProcess);
         this.disableDragSelection();
         this.clear();
     }
@@ -675,6 +713,7 @@ export default class RegionsPlugin {
         Object.keys(this.list).forEach(id => {
             this.list[id].remove();
         });
+        this._lastIdx = 0;
     }
 
     enableDragSelection(params) {

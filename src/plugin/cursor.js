@@ -49,43 +49,106 @@ export default class CursorPlugin {
      * @return {PluginDefinition} an object representing the plugin
      */
     static create(params) {
+        //params.lr 前后静音　单位秒
         return {
-            name: 'cursor',
-            deferInit: params && params.deferInit ? params.deferInit : false,
-            params: params,
+            name       : 'cursor',
+            deferInit  : params && params.deferInit ? params.deferInit : false,
+            params     : params,
             staticProps: {
                 enableCursor() {
                     console.warn('Deprecated enableCursor!');
                     this.initPlugins('cursor');
                 }
             },
-            instance: CursorPlugin
+            instance   : CursorPlugin
         };
     }
-
+    
     /**
      * @type {CursorPluginParams}
      */
     defaultParams = {
-        hideOnBlur: true,
-        width: '1px',
-        color: 'black',
-        opacity: '0.25',
-        style: 'solid',
-        zIndex: 4,
+        hideOnBlur : true,
+        width      : '1px',
+        color      : 'black',
+        opacity    : '0.25',
+        style      : 'solid',
+        zIndex     : 4,
         customStyle: {}
     };
-
+    
     /** @private */
-    _onMousemove = e => {
+    _onMousemove  = e => {
         const bbox = this.wavesurfer.container.getBoundingClientRect();
         this.updateCursorPosition(e.clientX - bbox.left);
+        const time             = this.wavesurfer.drawer.handleEvent(e) * this.wavesurfer.getDuration();
+        this.title.textContent = `${Math.floor((time % 3600) / 60)}:${Math.floor(time % 60)}`;
     };
     /** @private */
     _onMouseenter = () => this.showCursor();
     /** @private */
     _onMouseleave = () => this.hideCursor();
-
+    
+    _onReady = () => {
+        const duration = this.wavesurfer.getDuration();
+        if (duration > this.params.lr * 2) {
+            const { width } = this.wavesurfer.container.getBoundingClientRect();
+            const position  = (this.params.lr / duration) * width;
+            this.drawLR(position + 'px', position + 'px');
+        }
+    };
+    
+    drawLR(left, right) {
+        const wrapper    = this.wavesurfer.container;
+        this.cursorLeft  = wrapper.appendChild(
+            this.style(
+                document.createElement('cursor'),
+                this.wavesurfer.util.extend(
+                    {
+                        position        : 'absolute',
+                        zIndex          : this.params.zIndex,
+                        left,
+                        top             : 0,
+                        bottom          : 0,
+                        width           : '0',
+                        // display: 'none',
+                        borderRightStyle: this.params.style,
+                        borderRightWidth: this.params.width,
+                        borderRightColor: this.params.color,
+                        opacity         : this.params.opacity,
+                        pointerEvents   : 'none'
+                    },
+                    this.params.customStyle
+                )
+            )
+        );
+        this.cursorLeft.className="cursor"
+        this.cursorRight = wrapper.appendChild(
+            this.style(
+                document.createElement('cursor'),
+                this.wavesurfer.util.extend(
+                    {
+                        position        : 'absolute',
+                        zIndex          : this.params.zIndex,
+                        right,
+                        top             : 0,
+                        bottom          : 0,
+                        width           : '0',
+                        // display: 'none',
+                        borderRightStyle: this.params.style,
+                        borderRightWidth: this.params.width,
+                        borderRightColor: this.params.color,
+                        opacity         : this.params.opacity,
+                        pointerEvents   : 'none'
+                    },
+                    this.params.customStyle
+                )
+            )
+        );
+        this.cursorRight.className="cursor"
+        
+    }
+    
     /**
      * Construct the plugin class. You probably want to use CursorPlugin.create
      * instead.
@@ -104,45 +167,57 @@ export default class CursorPlugin {
          * @type {?HTMLElement}
          */
         this.cursor = null;
+        this.title = null;
         /** @private */
         this.params = ws.util.extend({}, this.defaultParams, params);
     }
-
+    
     /**
      * Initialise the plugin (used by the Plugin API)
      */
     init() {
-        const wrapper = this.wavesurfer.container;
-        this.cursor = wrapper.appendChild(
+        window.wavesurfer = this.wavesurfer;
+        const wrapper     = this.wavesurfer.container;
+        this.cursor       = wrapper.appendChild(
             this.style(
                 document.createElement('cursor'),
                 this.wavesurfer.util.extend(
                     {
-                        position: 'absolute',
-                        zIndex: this.params.zIndex,
-                        left: 0,
-                        top: 0,
-                        bottom: 0,
-                        width: '0',
-                        display: 'block',
+                        position        : 'absolute',
+                        zIndex          : this.params.zIndex,
+                        left            : 0,
+                        top             : 0,
+                        bottom          : 0,
+                        width           : '0',
+                        display         : 'none',
                         borderRightStyle: this.params.style,
                         borderRightWidth: this.params.width,
                         borderRightColor: this.params.color,
-                        opacity: this.params.opacity,
-                        pointerEvents: 'none'
+                        opacity         : this.params.opacity,
+                        pointerEvents   : 'none'
                     },
                     this.params.customStyle
                 )
             )
         );
-
+        
+        this.title = this.style(document.createElement('span'), {
+            position: 'relative',
+            top     : '-3px',
+            left    : '2px'
+        });
+        this.cursor.appendChild(this.title);
+        
         wrapper.addEventListener('mousemove', this._onMousemove);
         if (this.params.hideOnBlur) {
             wrapper.addEventListener('mouseenter', this._onMouseenter);
             wrapper.addEventListener('mouseleave', this._onMouseleave);
         }
+        if (this.params.lr) {
+            this.wavesurfer.on('ready', this._onReady);
+        }
     }
-
+    
     /**
      * Destroy the plugin (used by the Plugin API)
      */
@@ -153,8 +228,11 @@ export default class CursorPlugin {
             this.wrapper.removeEventListener('mouseenter', this._onMouseenter);
             this.wrapper.removeEventListener('mouseleave', this._onMouseleave);
         }
+        if (this.params.lr) {
+            this.wavesurfer.removeEventListener('ready', this._onReady());
+        }
     }
-
+    
     /**
      * Update the cursor position
      *
@@ -165,7 +243,7 @@ export default class CursorPlugin {
             left: `${pos}px`
         });
     }
-
+    
     /**
      * Show the cursor
      */
@@ -174,7 +252,7 @@ export default class CursorPlugin {
             display: 'block'
         });
     }
-
+    
     /**
      * Hide the cursor
      */

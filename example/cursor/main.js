@@ -4,10 +4,12 @@
 var wavesurfer = {};
 
 // Init & load audio file
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', function () {
     wavesurfer = WaveSurfer.create({
         container: document.querySelector('#waveform'),
-        plugins: [WaveSurfer.cursor.create()]
+        plugins: [WaveSurfer.cursor.create(), WaveSurfer.timeline.create({
+            container: '#wave-timeline'
+        })]
     });
 
     // Load audio from URL

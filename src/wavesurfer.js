@@ -1060,19 +1060,23 @@ export default class WaveSurfer extends util.Observer {
                 start,
                 end
             );
-            let i;
-            for (i = 0; i < newRanges.length; i++) {
-                peaks = this.backend.getPeaks(
-                    width,
-                    newRanges[i][0],
-                    newRanges[i][1]
-                );
-                this.drawer.drawPeaks(
-                    peaks,
-                    width,
-                    newRanges[i][0],
-                    newRanges[i][1]
-                );
+            if(newRanges.length){
+                for (let i = 0; i < newRanges.length; i++) {
+                    peaks = this.backend.getPeaks(
+                        width,
+                        newRanges[i][0],
+                        newRanges[i][1]
+                    );
+                    this.drawer.drawPeaks(
+                        peaks,
+                        width,
+                        newRanges[i][0],
+                        newRanges[i][1]
+                    );
+                }
+            } else {
+                peaks = this.backend.getPeaks(width, start, end)
+                this.drawer.drawPeaks(peaks, width, start, end)
             }
         } else {
             peaks = this.backend.getPeaks(width, start, end);
