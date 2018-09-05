@@ -79,6 +79,9 @@ export default class CursorPlugin {
     
     /** @private */
     _onMousemove  = e => {
+        if (!this._hasShow) {
+            this.showCursor();
+        }
         const bbox = this.wavesurfer.container.getBoundingClientRect();
         this.updateCursorPosition(e.clientX - bbox.left);
         const time             = this.wavesurfer.drawer.handleEvent(e) * this.wavesurfer.getDuration();
@@ -90,17 +93,30 @@ export default class CursorPlugin {
     _onMouseleave = () => this.hideCursor();
     
     _onReady = () => {
-        const duration = this.wavesurfer.getDuration();
-        if (duration > this.params.lr * 2) {
-            const { width } = this.wavesurfer.container.getBoundingClientRect();
-            const position  = (this.params.lr / duration) * width;
-            this.drawLR(position + 'px', position + 'px');
+        this._hasReady = true;
+        if (this.params.lr) {
+            const duration = this.wavesurfer.getDuration();
+            if (duration > this.params.lr * 2) {
+                const { width } = this.wavesurfer.container.getBoundingClientRect();
+                const position  = (this.params.lr / duration) * width;
+                if (this.wavesurfer.cursor_lr) {
+                    this.style(this.cursorLeft, {
+                        left: `${position}px`
+                    });
+                    this.style(this.cursorRight, {
+                        right: `${position}px`
+                    });
+                } else {
+                    this.drawLR(position + 'px', position + 'px');
+                }
+                this.wavesurfer.cursor_lr = true;
+            }
         }
     };
     
     drawLR(left, right) {
-        const wrapper    = this.wavesurfer.container;
-        this.cursorLeft  = wrapper.appendChild(
+        const wrapper              = this.wavesurfer.container;
+        this.cursorLeft            = wrapper.appendChild(
             this.style(
                 document.createElement('cursor'),
                 this.wavesurfer.util.extend(
@@ -122,8 +138,8 @@ export default class CursorPlugin {
                 )
             )
         );
-        this.cursorLeft.className="cursor"
-        this.cursorRight = wrapper.appendChild(
+        this.cursorLeft.className  = 'cursor c-l';
+        this.cursorRight           = wrapper.appendChild(
             this.style(
                 document.createElement('cursor'),
                 this.wavesurfer.util.extend(
@@ -145,7 +161,7 @@ export default class CursorPlugin {
                 )
             )
         );
-        this.cursorRight.className="cursor"
+        this.cursorRight.className = 'cursor c-r';
         
     }
     
@@ -170,15 +186,21 @@ export default class CursorPlugin {
         this.title = null;
         /** @private */
         this.params = ws.util.extend({}, this.defaultParams, params);
+        this._hasReady = false;
+        this._hasShow  = false;
+        this.wavesurfer.on('ready', this._onReady);
     }
     
     /**
      * Initialise the plugin (used by the Plugin API)
      */
     init() {
-        window.wavesurfer = this.wavesurfer;
-        const wrapper     = this.wavesurfer.container;
-        this.cursor       = wrapper.appendChild(
+        if (this.wavesurfer.isReady) {
+            this._onReady();
+        }
+        window.wavesurfer     = this.wavesurfer;
+        this.wrapper          = this.wavesurfer.container;
+        this.cursor           = this.wrapper.appendChild(
             this.style(
                 document.createElement('cursor'),
                 this.wavesurfer.util.extend(
@@ -200,21 +222,18 @@ export default class CursorPlugin {
                 )
             )
         );
-        
-        this.title = this.style(document.createElement('span'), {
+        this.cursor.className = 'cursor';
+        this.title            = this.style(document.createElement('span'), {
             position: 'relative',
             top     : '-3px',
             left    : '2px'
         });
         this.cursor.appendChild(this.title);
         
-        wrapper.addEventListener('mousemove', this._onMousemove);
+        this.wrapper.addEventListener('mousemove', this._onMousemove);
         if (this.params.hideOnBlur) {
-            wrapper.addEventListener('mouseenter', this._onMouseenter);
-            wrapper.addEventListener('mouseleave', this._onMouseleave);
-        }
-        if (this.params.lr) {
-            this.wavesurfer.on('ready', this._onReady);
+            this.wrapper.addEventListener('mouseenter', this._onMouseenter);
+            this.wrapper.addEventListener('mouseleave', this._onMouseleave);
         }
     }
     
@@ -228,9 +247,7 @@ export default class CursorPlugin {
             this.wrapper.removeEventListener('mouseenter', this._onMouseenter);
             this.wrapper.removeEventListener('mouseleave', this._onMouseleave);
         }
-        if (this.params.lr) {
-            this.wavesurfer.removeEventListener('ready', this._onReady());
-        }
+        this.wavesurfer.removeEventListener('ready', this._onReady());
     }
     
     /**
@@ -248,15 +265,19 @@ export default class CursorPlugin {
      * Show the cursor
      */
     showCursor() {
-        this.style(this.cursor, {
-            display: 'block'
-        });
+        if (this._hasReady) {
+            this._hasShow = true;
+            this.style(this.cursor, {
+                display: 'block'
+            });
+        }
     }
     
     /**
      * Hide the cursor
      */
     hideCursor() {
+        this._hasShow = false;
         this.style(this.cursor, {
             display: 'none'
         });

@@ -30,7 +30,17 @@ document.addEventListener('DOMContentLoaded', function () {
             })
         ]
     });
+    wavesurfer.load('msw001_03_rashomon_akutagawa_mt_64kb.mp3');
+    wavesurfer.on('ready', function() {
+        console.log(randomColor(0.1))
+        wavesurfer.enableDragSelection({
+            color: randomColor(0.1)
+        });
+    })
+});
 
+function initWave() {
+    
     wavesurfer.util
         .ajax({
             responseType: 'json',
@@ -43,12 +53,12 @@ document.addEventListener('DOMContentLoaded', function () {
             );
         });
     /* Regions */
-
+    
     wavesurfer.on('ready', function () {
         wavesurfer.enableDragSelection({
             color: randomColor(0.1)
         });
-
+        
         if (localStorage.regions) {
             loadRegions(JSON.parse(localStorage.regions));
         } else {
@@ -92,7 +102,7 @@ document.addEventListener('DOMContentLoaded', function () {
         //     attributes: { highlight: false }
         // })
     });
-
+    
     wavesurfer.on('region-play', function (region) {
         /* region.once('out', function() {
             wavesurfer.play(region.start);
@@ -100,7 +110,7 @@ document.addEventListener('DOMContentLoaded', function () {
             console.log('out', region);
         }); */
     });
-
+    
     /* Toggle play/pause buttons. */
     var playButton = document.querySelector('#play');
     var pauseButton = document.querySelector('#pause');
@@ -112,7 +122,7 @@ document.addEventListener('DOMContentLoaded', function () {
         playButton.style.display = '';
         pauseButton.style.display = 'none';
     });
-});
+}
 
 /**
  * Save annotations to localStorage.

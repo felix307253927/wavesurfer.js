@@ -626,6 +626,7 @@ export default class RegionsPlugin {
         // Id-based hash of regions.
         this.list = {};
         this._lastIdx = 0;
+        this.wavesurfer.on('ready', this._onReady);
     }
 
     _onReady() {
@@ -686,7 +687,6 @@ export default class RegionsPlugin {
             this._onReady();
         }
         this._lastIdx = 0;
-        this.wavesurfer.on('ready', this._onReady);
     }
 
     destroy() {

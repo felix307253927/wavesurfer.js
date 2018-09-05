@@ -86,7 +86,7 @@ export default class MultiCanvas extends Drawer {
                 pointerEvents: 'none'
             })
         );
-
+        this.progressWave.className="cursor"
         this.addCanvas();
         this.updateCursor();
     }
